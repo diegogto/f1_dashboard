@@ -1,0 +1,62 @@
+// Prisma v7 schema
+// Connection URL is configured in prisma.config.ts
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Model {
+  id            Int            @id @default(autoincrement())
+  ckArticleId   String         @unique  // Código de artículo de CK-modelcars (ej. "CMR43213")
+  year          Int?
+  driver        String?
+  team          String?
+  car           String?
+  series        String?
+  race          String?        // Gran Premio o nombre de carrera
+  brand         String?        // Fabricante del modelo a escala (Minichamps, Spark, etc.)
+  scale         String?
+  link          String?
+  currency      String?        @default("EUR")
+  carNumber     Int?           // Número del auto en la parrilla F1
+  isWishlisted  Boolean        @default(false)
+  isBlacklisted Boolean        @default(false)
+  isChampion    Boolean        @default(false) // WDC ese año
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  priceHistory  PriceHistory[]
+
+  @@index([year])
+  @@index([driver])
+  @@index([team])
+  @@index([isWishlisted])
+  @@index([isBlacklisted])
+}
+
+model PriceHistory {
+  id        Int      @id @default(autoincrement())
+  model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  modelId   Int
+  price     Float
+  scrapedAt DateTime @default(now())
+
+  @@index([modelId])
+  @@index([scrapedAt])
+}
+
+model ScraperRun {
+  id           Int      @id @default(autoincrement())
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+  status       String   @default("running") // running | success | error
+  newModels    Int      @default(0)
+  priceUps     Int      @default(0)
+  priceDowns   Int      @default(0)
+  totalScraped Int      @default(0)
+  log          String?  @db.Text
+}

@@ -1,0 +1,36 @@
+# Dependencies
+/node_modules
+
+# Next.js build
+/.next
+/out
+
+# Production build
+/build
+
+# Env files
+.env
+.env.local
+.env.production
+
+# Google credentials (keep out of git!)
+scraper/google_creds.json
+
+# DB
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Prisma migrations (keep in git, but not the generated client)
+/node_modules/.prisma
+
+# IDE
+.vscode
+.idea
