@@ -27,7 +27,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Install Python + pip (for scraper)
-RUN apk add --no-cache python3 py3-pip py3-setuptools gcc musl-dev libffi-dev
+RUN apk add --no-cache python3 py3-pip py3-setuptools gcc musl-dev libffi-dev libxml2-dev libxslt-dev postgresql-dev
 
 # Install Python scraper dependencies
 COPY scraper/requirements.txt /tmp/py-requirements.txt
