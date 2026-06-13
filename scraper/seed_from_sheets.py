@@ -14,10 +14,14 @@ import pygsheets
 import psycopg2
 import numpy as np
 
-CREDS_FILE = os.environ.get(
-    "GOOGLE_CREDS_FILE",
-    os.path.join(os.path.dirname(__file__), "../../../f1_scrapper/formula1-collection-89688a4d1ad3.json"),
-)
+CREDS_FILE = os.environ.get("GOOGLE_CREDS_FILE")
+if not CREDS_FILE:
+    local_path = os.path.join(os.path.dirname(__file__), "google_creds.json")
+    if os.path.exists(local_path):
+        CREDS_FILE = local_path
+    else:
+        CREDS_FILE = os.path.join(os.path.dirname(__file__), "../../../f1_scrapper/formula1-collection-89688a4d1ad3.json")
+
 SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "1i-PiE-95QnP49iGsn1wtHQPGkDSkjiRqa8drCahnwDQ")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 

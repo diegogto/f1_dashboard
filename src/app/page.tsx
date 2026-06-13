@@ -43,6 +43,7 @@ async function getModels(): Promise<ModelRow[]> {
       isWishlisted: model.isWishlisted,
       isBlacklisted: model.isBlacklisted,
       isChampion: model.isChampion,
+      isAvailable: model.isAvailable,
       currentPrice,
       previousPrice,
       lastScrapedAt,
@@ -104,6 +105,8 @@ async function getStats() {
   }
 }
 
+
+export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
   let models: ModelRow[] = []

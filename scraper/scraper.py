@@ -124,10 +124,10 @@ def upsert_model(cur, car: dict, is_champion: bool = False) -> int | None:
         '''
         INSERT INTO "Model" (
             "ckArticleId", year, driver, team, car, series, race,
-            brand, scale, link, currency, "isChampion", "updatedAt"
+            brand, scale, link, currency, "isChampion", "isAvailable", "updatedAt"
         ) VALUES (
             %(article)s, %(year)s, %(driver)s, %(team)s, %(car)s, %(series)s, %(race)s,
-            %(brand)s, %(scale)s, %(link)s, %(currency)s, %(is_champion)s, NOW()
+            %(brand)s, %(scale)s, %(link)s, %(currency)s, %(is_champion)s, true, NOW()
         )
         ON CONFLICT ("ckArticleId") DO UPDATE SET
             year = EXCLUDED.year,
@@ -141,6 +141,7 @@ def upsert_model(cur, car: dict, is_champion: bool = False) -> int | None:
             link = EXCLUDED.link,
             currency = EXCLUDED.currency,
             "isChampion" = EXCLUDED."isChampion",
+            "isAvailable" = true,
             "updatedAt" = NOW()
         RETURNING id
         ''',
@@ -240,6 +241,8 @@ def main():
             run_id = create_scraper_run(cur)
             conn.commit()
 
+            scraped_processed = []
+
             for car in cars:
                 article = car.get("article", "")
                 if not article or article in blacklist:
@@ -252,6 +255,8 @@ def main():
                 model_id = upsert_model(cur, car)
                 if model_id is None:
                     continue
+
+                scraped_processed.append(article)
 
                 last_price = get_last_price(cur, model_id)
                 insert_price(cur, model_id, price)
@@ -271,6 +276,18 @@ def main():
                     msg = f"📈 Up: {car.get('driver','')} ({article}) €{last_price} → €{price}"
                     print(f"\033[31m  {msg}\033[0m")
                     log_lines.append(msg)
+
+            # Mark models not in the scraped set as unavailable (isAvailable = False)
+            if scraped_processed:
+                cur.execute(
+                    'UPDATE "Model" SET "isAvailable" = false WHERE "isBlacklisted" = false AND NOT ("ckArticleId" = ANY(%s))',
+                    (scraped_processed,),
+                )
+                cur.execute('SELECT COUNT(*) FROM "Model" WHERE "isAvailable" = false AND "isBlacklisted" = false')
+                unavail_count = cur.fetchone()[0]
+                unavail_msg = f"ℹ️ Total unavailable models in DB: {unavail_count}"
+                print(f"  {unavail_msg}")
+                log_lines.append(unavail_msg)
 
             elapsed = (datetime.datetime.now() - start).total_seconds()
             summary = (

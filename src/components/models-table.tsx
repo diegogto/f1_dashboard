@@ -230,7 +230,9 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
                     className={cn(
                       'group border-b border-white/5 transition-colors',
                       i % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-800/20',
-                      'hover:bg-red-950/30'
+                      row.original.isAvailable
+                        ? 'hover:bg-red-950/30'
+                        : 'opacity-50 hover:bg-slate-800/30'
                     )}
                   >
                     {row.getVisibleCells().map((cell) => (

@@ -13,6 +13,7 @@ export type ModelRow = {
   isWishlisted: boolean
   isBlacklisted: boolean
   isChampion: boolean
+  isAvailable: boolean
   currentPrice: number | null
   previousPrice: number | null
   lastScrapedAt: string | null

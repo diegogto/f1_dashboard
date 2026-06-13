@@ -11,10 +11,24 @@ interface PriceBadgeProps {
 }
 
 export function PriceBadge({ row }: PriceBadgeProps) {
-  const { currentPrice, previousPrice, priceChange, lastScrapedAt, currency } = row
+  const { currentPrice, previousPrice, priceChange, lastScrapedAt, currency, isAvailable } = row
 
   if (currentPrice === null) {
     return <span className="text-muted-foreground text-sm">—</span>
+  }
+
+  if (!isAvailable) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="font-semibold text-sm text-slate-400">{formatPrice(currentPrice, currency ?? 'EUR')}</span>
+        <Badge
+          variant="outline"
+          className="px-1.5 py-0.5 text-[10px] font-semibold text-red-400 border-red-500/20 bg-red-950/20 uppercase tracking-wider cursor-default"
+        >
+          Agotado
+        </Badge>
+      </div>
+    )
   }
 
   const days = daysSince(lastScrapedAt)

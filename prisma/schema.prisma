@@ -26,6 +26,7 @@ model Model {
   isWishlisted  Boolean        @default(false)
   isBlacklisted Boolean        @default(false)
   isChampion    Boolean        @default(false) // WDC ese año
+  isAvailable   Boolean        @default(true)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -36,6 +37,7 @@ model Model {
   @@index([team])
   @@index([isWishlisted])
   @@index([isBlacklisted])
+  @@index([isAvailable])
 }
 
 model PriceHistory {

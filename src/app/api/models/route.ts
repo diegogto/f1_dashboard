@@ -59,6 +59,7 @@ export async function GET(request: Request) {
         isWishlisted: model.isWishlisted,
         isBlacklisted: model.isBlacklisted,
         isChampion: model.isChampion,
+        isAvailable: model.isAvailable,
         currentPrice,
         previousPrice,
         lastScrapedAt,
