@@ -238,6 +238,16 @@ def main():
 
     print(f"\n✅ Scraped {len(cars)} cars ({failed} failed)")
 
+    # Parse command line args
+    run_id = None
+    if len(sys.argv) > 1:
+        for arg in sys.argv[1:]:
+            if arg.startswith('--run-id='):
+                try:
+                    run_id = int(arg.split('=')[1])
+                except ValueError:
+                    pass
+
     # Write to DB
     new_models = 0
     price_ups = 0
@@ -248,7 +258,8 @@ def main():
     try:
         with conn.cursor() as cur:
             blacklist = get_blacklist(cur)
-            run_id = create_scraper_run(cur)
+            if run_id is None:
+                run_id = create_scraper_run(cur)
             conn.commit()
 
             scraped_processed = []

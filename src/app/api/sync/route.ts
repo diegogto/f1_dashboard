@@ -89,7 +89,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Clear/Prepare live log file
+    // 4. Create Prisma ScraperRun record beforehand to avoid race conditions
+    const newRun = await prisma.scraperRun.create({
+      data: {
+        status: 'running',
+        startedAt: new Date(),
+      }
+    })
+    const runId = newRun.id
+
+    // 5. Clear/Prepare live log file
     const logDir = path.join(process.cwd(), 'scraper')
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true })
@@ -97,11 +106,11 @@ export async function POST(request: Request) {
     const logPath = path.join(logDir, 'live.log')
     fs.writeFileSync(logPath, '🚀 Iniciando el scraper de F1...\n')
 
-    // 5. Run the scraper script in background with spawn (unbuffered -u)
+    // 6. Run the scraper script in background with spawn (unbuffered -u and pass --run-id)
     const scraperPath = path.join(process.cwd(), 'scraper', 'scraper.py')
-    console.log('[SYNC API] Spawning scraper in background:', scraperPath)
+    console.log('[SYNC API] Spawning scraper in background:', scraperPath, 'with runId:', runId)
 
-    const child = spawn('python3', ['-u', scraperPath], {
+    const child = spawn('python3', ['-u', scraperPath, `--run-id=${runId}`], {
       env: { ...process.env },
     })
 
@@ -109,14 +118,50 @@ export async function POST(request: Request) {
     child.stdout.pipe(logStream)
     child.stderr.pipe(logStream)
 
-    child.on('close', (code) => {
+    child.on('error', async (err) => {
+      console.error('[SYNC API BACKGROUND] Error spawning child process:', err)
+      logStream.write(`\n❌ Error al iniciar el proceso: ${err.message}\n`)
+      try {
+        await prisma.scraperRun.update({
+          where: { id: runId },
+          data: {
+            status: 'error',
+            finishedAt: new Date(),
+            log: `Error al iniciar el proceso: ${err.message}`,
+          }
+        })
+      } catch (dbErr) {
+        console.error('[SYNC API BACKGROUND] DB Update Error:', dbErr)
+      }
+    })
+
+    child.on('close', async (code) => {
       console.log(`[SYNC API BACKGROUND] Scraper process exited with code ${code}`)
       logStream.end()
+
+      if (code !== 0) {
+        try {
+          const run = await prisma.scraperRun.findUnique({ where: { id: runId } })
+          if (run && run.status === 'running') {
+            await prisma.scraperRun.update({
+              where: { id: runId },
+              data: {
+                status: 'error',
+                finishedAt: new Date(),
+                log: `El proceso terminó inesperadamente con código de salida ${code}.`,
+              }
+            })
+          }
+        } catch (dbErr) {
+          console.error('[SYNC API BACKGROUND] DB Update Error:', dbErr)
+        }
+      }
     })
 
     return NextResponse.json({
       success: true,
       message: 'Sincronización iniciada en segundo plano...',
+      runId,
     })
   } catch (error: any) {
     console.error('[SYNC API POST] Error:', error)
