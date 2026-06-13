@@ -87,6 +87,15 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
     timer: NodeJS.Timeout | null
   } | null>(null)
   const [selectedModelForHistory, setSelectedModelForHistory] = useState<ModelRow | null>(null)
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 50,
+  })
+
+  // Reset page index when filters change to avoid out of bounds views
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+  }, [activeFilters])
 
   // Toggle handlers
   const handleToggleBlacklist = useCallback(async (row: ModelRow, isBlacklisted: boolean) => {
@@ -408,14 +417,15 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
   const table = useReactTable({
     data: filteredData,
     columns,
-    state: { sorting, columnFilters },
+    state: { sorting, columnFilters, pagination },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onPaginationChange: setPagination,
+    autoResetPageIndex: false,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 50 } },
   })
 
   return (
