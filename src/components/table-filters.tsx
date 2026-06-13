@@ -24,11 +24,13 @@ import { FiltersData } from '@/types/model'
 import { Label } from '@/components/ui/label'
 
 export type ActiveFilters = {
-  year: number | null
-  driver: string | null
-  team: string | null
-  brand: string | null
+  years: number[]
+  drivers: string[]
+  teams: string[]
+  brands: string[]
+  titles: ('wdc' | 'wcc')[]
   wishlistOnly: boolean
+  hideUnavailable: boolean
   search: string
   minPrice: number | null
   maxPrice: number | null
@@ -42,75 +44,89 @@ interface TableFiltersProps {
   totalResults: number
 }
 
-function ComboboxFilter({
+function MultiSelectComboboxFilter({
   label,
   placeholder,
   options,
-  value,
-  onSelect,
+  selectedValues,
+  onChange,
 }: {
   label: string
   placeholder: string
   options: (string | number)[]
-  value: string | number | null
-  onSelect: (val: string | number | null) => void
+  selectedValues: (string | number)[]
+  onChange: (vals: (string | number)[]) => void
 }) {
   const [open, setOpen] = useState(false)
+
+  const handleSelect = (opt: string | number) => {
+    if (selectedValues.includes(opt)) {
+      onChange(selectedValues.filter((v) => v !== opt))
+    } else {
+      onChange([...selectedValues, opt])
+    }
+  }
+
+  const handleClear = () => {
+    onChange([])
+  }
+
+  const isFiltered = selectedValues.length > 0
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant={value ? 'default' : 'outline'}
+          variant={isFiltered ? 'default' : 'outline'}
           role="combobox"
           aria-expanded={open}
           className={cn(
-            'h-9 gap-1.5 text-sm font-medium transition-all',
-            value
+            'h-9 gap-1.5 text-sm font-medium transition-all max-w-[200px]',
+            isFiltered
               ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
               : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-200'
           )}
         >
-          {label}
-          {value ? (
-            <Badge variant="secondary" className="ml-1 rounded-sm px-1 text-xs bg-white/20 text-white">
-              {value}
+          <span className="truncate">{label}</span>
+          {isFiltered ? (
+            <Badge variant="secondary" className="ml-1 rounded-sm px-1.5 py-0.5 text-xs bg-white/20 text-white shrink-0">
+              {selectedValues.length}
             </Badge>
           ) : null}
-          <ChevronDown className={cn('h-3.5 w-3.5 opacity-60 transition-transform', open && 'rotate-180')} />
+          <ChevronDown className={cn('h-3.5 w-3.5 opacity-60 transition-transform shrink-0', open && 'rotate-180')} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[220px] p-0 bg-slate-900 border-white/10" align="start">
-        <Command className="bg-transparent">
-          <CommandInput placeholder={placeholder} className="h-9 text-sm" />
-          <CommandList>
+      <PopoverContent className="w-[240px] p-0 bg-slate-900 border-white/10" align="start">
+        <Command className="bg-transparent text-slate-200">
+          <CommandInput placeholder={placeholder} className="h-9 text-sm text-white" />
+          <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandEmpty className="text-slate-400 text-sm py-3 text-center">Sin resultados</CommandEmpty>
             <CommandGroup>
-              {value !== null && (
+              {isFiltered && (
                 <CommandItem
-                  onSelect={() => { onSelect(null); setOpen(false) }}
-                  className="text-slate-400 text-xs italic"
+                  onSelect={handleClear}
+                  className="text-slate-400 text-xs italic cursor-pointer hover:bg-white/5 flex items-center px-2 py-1.5"
                 >
-                  <X className="mr-2 h-3 w-3" />
-                  Limpiar filtro
+                  <X className="mr-2 h-3.5 w-3.5 shrink-0" />
+                  Limpiar seleccionados
                 </CommandItem>
               )}
-              {options.map((opt) => (
-                <CommandItem
-                  key={String(opt)}
-                  value={String(opt)}
-                  onSelect={() => {
-                    onSelect(opt === value ? null : opt)
-                    setOpen(false)
-                  }}
-                  className="text-sm"
-                >
-                  <Check
-                    className={cn('mr-2 h-4 w-4', value === opt ? 'opacity-100 text-red-400' : 'opacity-0')}
-                  />
-                  {opt}
-                </CommandItem>
-              ))}
+              {options.map((opt) => {
+                const isSelected = selectedValues.includes(opt)
+                return (
+                  <CommandItem
+                    key={String(opt)}
+                    value={String(opt)}
+                    onSelect={() => handleSelect(opt)}
+                    className="text-sm cursor-pointer hover:bg-white/5 text-slate-200 flex items-center px-2 py-1.5"
+                  >
+                    <Check
+                      className={cn('mr-2 h-4 w-4 shrink-0', isSelected ? 'opacity-100 text-red-400' : 'opacity-0')}
+                    />
+                    <span className="truncate">{opt}</span>
+                  </CommandItem>
+                )
+              })}
             </CommandGroup>
           </CommandList>
         </Command>
@@ -240,11 +256,13 @@ export function TableFilters({
   totalResults,
 }: TableFiltersProps) {
   const activeCount = [
-    activeFilters.year,
-    activeFilters.driver,
-    activeFilters.team,
-    activeFilters.brand,
+    activeFilters.years.length > 0,
+    activeFilters.drivers.length > 0,
+    activeFilters.teams.length > 0,
+    activeFilters.brands.length > 0,
+    activeFilters.titles.length > 0,
     activeFilters.wishlistOnly,
+    activeFilters.hideUnavailable,
     activeFilters.search,
     activeFilters.minPrice !== null ? true : null,
     activeFilters.maxPrice !== null ? true : null,
@@ -252,11 +270,13 @@ export function TableFilters({
 
   const clearAll = () => {
     onFiltersChange({
-      year: null,
-      driver: null,
-      team: null,
-      brand: null,
+      years: [],
+      drivers: [],
+      teams: [],
+      brands: [],
+      titles: [],
       wishlistOnly: false,
+      hideUnavailable: false,
       search: '',
       minPrice: null,
       maxPrice: null,
@@ -282,39 +302,55 @@ export function TableFilters({
         />
 
         {/* Year filter */}
-        <ComboboxFilter
+        <MultiSelectComboboxFilter
           label="Año"
           placeholder="Buscar año..."
           options={filtersData.years}
-          value={activeFilters.year}
-          onSelect={(v) => onFiltersChange({ ...activeFilters, year: v as number | null })}
+          selectedValues={activeFilters.years}
+          onChange={(v) => onFiltersChange({ ...activeFilters, years: v as number[] })}
         />
 
         {/* Driver filter */}
-        <ComboboxFilter
+        <MultiSelectComboboxFilter
           label="Piloto"
           placeholder="Buscar piloto..."
           options={filtersData.drivers}
-          value={activeFilters.driver}
-          onSelect={(v) => onFiltersChange({ ...activeFilters, driver: v as string | null })}
+          selectedValues={activeFilters.drivers}
+          onChange={(v) => onFiltersChange({ ...activeFilters, drivers: v as string[] })}
         />
 
         {/* Team filter */}
-        <ComboboxFilter
+        <MultiSelectComboboxFilter
           label="Escudería"
           placeholder="Buscar escudería..."
           options={filtersData.teams}
-          value={activeFilters.team}
-          onSelect={(v) => onFiltersChange({ ...activeFilters, team: v as string | null })}
+          selectedValues={activeFilters.teams}
+          onChange={(v) => onFiltersChange({ ...activeFilters, teams: v as string[] })}
         />
 
         {/* Brand filter */}
-        <ComboboxFilter
+        <MultiSelectComboboxFilter
           label="Fabricante"
           placeholder="Buscar fabricante..."
           options={filtersData.brands}
-          value={activeFilters.brand}
-          onSelect={(v) => onFiltersChange({ ...activeFilters, brand: v as string | null })}
+          selectedValues={activeFilters.brands}
+          onChange={(v) => onFiltersChange({ ...activeFilters, brands: v as string[] })}
+        />
+
+        {/* Champion titles filter */}
+        <MultiSelectComboboxFilter
+          label="Títulos"
+          placeholder="Buscar título..."
+          options={['Campeón Pilotos (WDC)', 'Campeón Constructores (WCC)']}
+          selectedValues={activeFilters.titles.map((t) =>
+            t === 'wdc' ? 'Campeón Pilotos (WDC)' : 'Campeón Constructores (WCC)'
+          )}
+          onChange={(vals) => {
+            const mapped = vals.map((v) =>
+              v === 'Campeón Pilotos (WDC)' ? ('wdc' as const) : ('wcc' as const)
+            )
+            onFiltersChange({ ...activeFilters, titles: mapped })
+          }}
         />
 
         {/* Price range filter */}
@@ -336,6 +372,21 @@ export function TableFilters({
           />
           <Label htmlFor="wishlist-toggle" className="text-sm text-slate-300 cursor-pointer">
             Solo Wishlist ♥
+          </Label>
+        </div>
+
+        {/* Hide Sold-out toggle */}
+        <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-1.5">
+          <Switch
+            id="availability-toggle"
+            checked={activeFilters.hideUnavailable}
+            onCheckedChange={(checked) =>
+              onFiltersChange({ ...activeFilters, hideUnavailable: checked })
+            }
+            className="data-[state=checked]:bg-red-600"
+          />
+          <Label htmlFor="availability-toggle" className="text-sm text-slate-300 cursor-pointer">
+            Ocultar Agotados
           </Label>
         </div>
 

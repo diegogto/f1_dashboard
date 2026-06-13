@@ -68,11 +68,13 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'year', desc: false }])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({
-    year: null,
-    driver: null,
-    team: null,
-    brand: null,
+    years: [],
+    drivers: [],
+    teams: [],
+    brands: [],
+    titles: [],
     wishlistOnly: false,
+    hideUnavailable: false,
     search: '',
     minPrice: null,
     maxPrice: null,
@@ -176,11 +178,23 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
         if (row.isBlacklisted) return false
       }
 
-      if (activeFilters.year && row.year !== activeFilters.year) return false
-      if (activeFilters.driver && row.driver !== activeFilters.driver) return false
-      if (activeFilters.team && row.team !== activeFilters.team) return false
-      if (activeFilters.brand && row.brand !== activeFilters.brand) return false
+      if (activeFilters.years.length > 0 && (row.year === null || !activeFilters.years.includes(row.year))) return false
+      if (activeFilters.drivers.length > 0 && (row.driver === null || !activeFilters.drivers.includes(row.driver))) return false
+      if (activeFilters.teams.length > 0 && (row.team === null || !activeFilters.teams.includes(row.team))) return false
+      if (activeFilters.brands.length > 0 && (row.brand === null || !activeFilters.brands.includes(row.brand))) return false
       if (activeFilters.wishlistOnly && !row.isWishlisted) return false
+      if (activeFilters.hideUnavailable && !row.isAvailable) return false
+
+      if (activeFilters.titles.length > 0) {
+        let matches = false
+        if (activeFilters.titles.includes('wdc') && isDriverChampion(row.year, row.driver)) {
+          matches = true
+        }
+        if (activeFilters.titles.includes('wcc') && isTeamChampion(row.year, row.team)) {
+          matches = true
+        }
+        if (!matches) return false
+      }
       if (activeFilters.minPrice !== null && activeFilters.minPrice !== undefined) {
         if (row.currentPrice === null || row.currentPrice < activeFilters.minPrice) return false
       }
