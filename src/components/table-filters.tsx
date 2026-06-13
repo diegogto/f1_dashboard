@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -29,6 +30,8 @@ export type ActiveFilters = {
   brand: string | null
   wishlistOnly: boolean
   search: string
+  minPrice: number | null
+  maxPrice: number | null
 }
 
 interface TableFiltersProps {
@@ -115,6 +118,120 @@ function ComboboxFilter({
   )
 }
 
+function PriceRangeFilter({
+  minPrice,
+  maxPrice,
+  onChange,
+}: {
+  minPrice: number | null
+  maxPrice: number | null
+  onChange: (min: number | null, max: number | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [tempMin, setTempMin] = useState<string>(minPrice !== null ? String(minPrice) : '')
+  const [tempMax, setTempMax] = useState<string>(maxPrice !== null ? String(maxPrice) : '')
+
+  useEffect(() => {
+    setTempMin(minPrice !== null ? String(minPrice) : '')
+    setTempMax(maxPrice !== null ? String(maxPrice) : '')
+  }, [minPrice, maxPrice])
+
+  const handleApply = (e: React.FormEvent) => {
+    e.preventDefault()
+    const minVal = tempMin.trim() === '' ? null : parseFloat(tempMin)
+    const maxVal = tempMax.trim() === '' ? null : parseFloat(tempMax)
+    onChange(
+      minVal !== null && !isNaN(minVal) ? minVal : null,
+      maxVal !== null && !isNaN(maxVal) ? maxVal : null
+    )
+    setOpen(false)
+  }
+
+  const handleClear = () => {
+    setTempMin('')
+    setTempMax('')
+    onChange(null, null)
+    setOpen(false)
+  }
+
+  const isFiltered = minPrice !== null || maxPrice !== null
+
+  let labelText = 'Precio'
+  if (minPrice !== null && maxPrice !== null) {
+    labelText = `${minPrice}€ - ${maxPrice}€`
+  } else if (minPrice !== null) {
+    labelText = `>= ${minPrice}€`
+  } else if (maxPrice !== null) {
+    labelText = `<= ${maxPrice}€`
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant={isFiltered ? 'default' : 'outline'}
+          className={cn(
+            'h-9 gap-1.5 text-sm font-medium transition-all',
+            isFiltered
+              ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+              : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-200'
+          )}
+        >
+          Precio
+          {isFiltered && (
+            <Badge variant="secondary" className="ml-1 rounded-sm px-1 text-xs bg-white/20 text-white font-mono">
+              {labelText}
+            </Badge>
+          )}
+          <ChevronDown className={cn('h-3.5 w-3.5 opacity-60 transition-transform', open && 'rotate-180')} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[240px] p-4 bg-slate-900 border-white/10 text-slate-200" align="start">
+        <form onSubmit={handleApply} className="space-y-4">
+          <div className="space-y-2">
+            <h4 className="font-semibold text-sm leading-none">Rango de precio</h4>
+            <p className="text-xs text-slate-400">Filtrar por precio (€)</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="min-price" className="text-xs text-slate-400">Mínimo</Label>
+              <Input
+                id="min-price"
+                type="number"
+                placeholder="0"
+                value={tempMin}
+                onChange={(e) => setTempMin(e.target.value)}
+                className="bg-slate-950 border-white/10 text-slate-200"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="max-price" className="text-xs text-slate-400">Máximo</Label>
+              <Input
+                id="max-price"
+                type="number"
+                placeholder="999"
+                value={tempMax}
+                onChange={(e) => setTempMax(e.target.value)}
+                className="bg-slate-950 border-white/10 text-slate-200"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            {isFiltered && (
+              <Button type="button" size="sm" variant="ghost" onClick={handleClear} className="text-xs text-slate-400 hover:text-white">
+                Limpiar
+              </Button>
+            )}
+            <Button type="submit" size="sm" className="bg-red-600 text-white hover:bg-red-700 text-xs">
+              Aplicar
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function TableFilters({
   filtersData,
   activeFilters,
@@ -128,10 +245,21 @@ export function TableFilters({
     activeFilters.brand,
     activeFilters.wishlistOnly,
     activeFilters.search,
+    activeFilters.minPrice !== null ? true : null,
+    activeFilters.maxPrice !== null ? true : null,
   ].filter(Boolean).length
 
   const clearAll = () => {
-    onFiltersChange({ year: null, driver: null, team: null, brand: null, wishlistOnly: false, search: '' })
+    onFiltersChange({
+      year: null,
+      driver: null,
+      team: null,
+      brand: null,
+      wishlistOnly: false,
+      search: '',
+      minPrice: null,
+      maxPrice: null,
+    })
   }
 
   return (
@@ -185,6 +313,13 @@ export function TableFilters({
           options={filtersData.brands}
           value={activeFilters.brand}
           onSelect={(v) => onFiltersChange({ ...activeFilters, brand: v as string | null })}
+        />
+
+        {/* Price range filter */}
+        <PriceRangeFilter
+          minPrice={activeFilters.minPrice}
+          maxPrice={activeFilters.maxPrice}
+          onChange={(min, max) => onFiltersChange({ ...activeFilters, minPrice: min, maxPrice: max })}
         />
 
         {/* Wishlist toggle */}

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { ModelsTable } from '@/components/models-table'
 import { ModelRow } from '@/types/model'
 import { Trophy, Database, RefreshCw, TrendingDown } from 'lucide-react'
+import { SyncControl } from '@/components/sync-control'
 
 async function getModels(): Promise<ModelRow[]> {
   const models = await prisma.model.findMany({
@@ -155,10 +156,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-4 text-xs text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <RefreshCw className="h-3 w-3" />
-              <span>Última actualización: <span className="text-slate-300">{lastRunDate}</span></span>
-            </div>
+            <SyncControl initialLastRun={stats.lastRun} />
             <div className="h-3 w-px bg-white/10" />
             <span className="text-slate-400">ck-modelcars.de</span>
           </div>

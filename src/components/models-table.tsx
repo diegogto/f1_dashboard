@@ -54,6 +54,8 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
     brand: null,
     wishlistOnly: false,
     search: '',
+    minPrice: null,
+    maxPrice: null,
   })
 
   // Client-side filter logic
@@ -64,6 +66,12 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
       if (activeFilters.team && row.team !== activeFilters.team) return false
       if (activeFilters.brand && row.brand !== activeFilters.brand) return false
       if (activeFilters.wishlistOnly && !row.isWishlisted) return false
+      if (activeFilters.minPrice !== null && activeFilters.minPrice !== undefined) {
+        if (row.currentPrice === null || row.currentPrice < activeFilters.minPrice) return false
+      }
+      if (activeFilters.maxPrice !== null && activeFilters.maxPrice !== undefined) {
+        if (row.currentPrice === null || row.currentPrice > activeFilters.maxPrice) return false
+      }
       if (activeFilters.search) {
         const q = activeFilters.search.toLowerCase()
         const searchable = [row.driver, row.team, row.car, row.ckArticleId, row.brand]
@@ -126,6 +134,13 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
         },
         size: 60,
       }),
+      columnHelper.accessor('car', {
+        header: ({ column }) => <SortableHeader column={column} label="Auto" />,
+        cell: (info) => (
+          <span className="text-xs text-slate-500 line-clamp-1">{info.getValue() ?? '—'}</span>
+        ),
+        size: 180,
+      }),
       columnHelper.accessor('brand', {
         header: ({ column }) => <SortableHeader column={column} label="Fabricante" />,
         cell: (info) => (
@@ -135,16 +150,9 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
         ),
         size: 120,
       }),
-      columnHelper.accessor('car', {
-        header: ({ column }) => <SortableHeader column={column} label="Auto" />,
-        cell: (info) => (
-          <span className="text-xs text-slate-500 line-clamp-1">{info.getValue() ?? '—'}</span>
-        ),
-        size: 180,
-      }),
-      columnHelper.display({
+      columnHelper.accessor('currentPrice', {
         id: 'priceVariation',
-        header: () => <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Precio / Variación</span>,
+        header: ({ column }) => <SortableHeader column={column} label="Precio / Variación" />,
         cell: ({ row }) => <PriceBadge row={row.original} />,
         size: 180,
       }),

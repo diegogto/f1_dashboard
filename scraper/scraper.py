@@ -95,8 +95,18 @@ def parse_car_page(car_link: str) -> dict | None:
     except ValueError:
         year = None
 
+    brand_nodes = tree.xpath('//h2[contains(@class,"hersteller")]/span')
+    brand = ""
+    if brand_nodes:
+        brand_span = brand_nodes[0]
+        # Extract direct text nodes to avoid GPSR warning info in span
+        direct_texts = [t.strip() for t in brand_span.xpath('text()') if t.strip()]
+        brand = " ".join(direct_texts)
+        if not brand:
+            brand = brand_span.text_content().strip()
+
     return {
-        "brand":    _text(tree, '//h2[contains(@class,"hersteller")]/span'),
+        "brand":    brand,
         "scale":    _text(tree, '//h2[contains(@class,"massstab")]/span'),
         "team":     _text(tree, '//h6[contains(@class,"team")]/span'),
         "driver":   _text(tree, '//h3[contains(@class,"fahrer")]/span'),
