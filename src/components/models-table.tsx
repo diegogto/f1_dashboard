@@ -30,8 +30,26 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Calendar,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isDriverChampion, isTeamChampion } from '@/lib/champions'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 
 const columnHelper = createColumnHelper<ModelRow>()
 
@@ -66,6 +84,7 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
     visible: boolean
     timer: NodeJS.Timeout | null
   } | null>(null)
+  const [selectedModelForHistory, setSelectedModelForHistory] = useState<ModelRow | null>(null)
 
   // Toggle handlers
   const handleToggleBlacklist = useCallback(async (row: ModelRow, isBlacklisted: boolean) => {
@@ -193,12 +212,68 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
         ),
         size: 80,
       }),
+      columnHelper.display({
+        id: 'wccTrophy',
+        header: () => null,
+        cell: ({ row }) => {
+          const m = row.original
+          const winner = isTeamChampion(m.year, m.team)
+          if (!winner) return <div className="w-5" />
+          return (
+            <div className="flex justify-center w-5">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <img
+                      src="/wcc_cup.png"
+                      alt="Copa Constructores"
+                      className="w-5 h-5 shrink-0 transition-all duration-200 hover:scale-125 object-contain cursor-help filter drop-shadow-[0_0_4px_rgba(239,68,68,0.3)]"
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-slate-900 border border-white/10 text-white p-2 text-xs rounded-md shadow-xl">
+                    Campeón de Constructores {m.year} ({m.team})
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )
+        },
+        size: 40,
+      }),
       columnHelper.accessor('team', {
         header: ({ column }) => <SortableHeader column={column} label="Escudería" />,
         cell: (info) => (
           <span className="text-sm text-slate-300 line-clamp-1">{info.getValue() ?? '—'}</span>
         ),
         size: 180,
+      }),
+      columnHelper.display({
+        id: 'wdcTrophy',
+        header: () => null,
+        cell: ({ row }) => {
+          const m = row.original
+          const winner = isDriverChampion(m.year, m.driver)
+          if (!winner) return <div className="w-5" />
+          return (
+            <div className="flex justify-center w-5">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <img
+                      src="/wdc_cup.png"
+                      alt="Copa Pilotos"
+                      className="w-5 h-5 shrink-0 transition-all duration-200 hover:scale-125 object-contain cursor-help filter drop-shadow-[0_0_4px_rgba(245,158,11,0.3)]"
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-slate-900 border border-white/10 text-white p-2 text-xs rounded-md shadow-xl">
+                    Campeón de Pilotos {m.year} ({m.driver})
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )
+        },
+        size: 40,
       }),
       columnHelper.accessor('driver', {
         header: ({ column }) => <SortableHeader column={column} label="Piloto" />,
@@ -229,9 +304,18 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
       }),
       columnHelper.accessor('car', {
         header: ({ column }) => <SortableHeader column={column} label="Auto" />,
-        cell: (info) => (
-          <span className="text-xs text-slate-500 line-clamp-1">{info.getValue() ?? '—'}</span>
-        ),
+        cell: (info) => {
+          const row = info.row.original
+          return (
+            <button
+              onClick={() => setSelectedModelForHistory(row)}
+              className="text-xs text-left text-slate-400 hover:text-red-400 font-medium hover:underline transition-colors focus:outline-none cursor-pointer line-clamp-1"
+              title="Ver historial de precios"
+            >
+              {info.getValue() ?? '—'}
+            </button>
+          )
+        },
         size: 180,
       }),
       columnHelper.accessor('brand', {
@@ -456,6 +540,14 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
           </button>
         </div>
       )}
+
+      {/* Price History Modal */}
+      {selectedModelForHistory && (
+        <PriceHistoryModal
+          model={selectedModelForHistory}
+          onClose={() => setSelectedModelForHistory(null)}
+        />
+      )}
     </div>
   )
 }
@@ -483,5 +575,412 @@ function SortableHeader({
         <ArrowUpDown className="h-3 w-3 opacity-30" />
       )}
     </button>
+  )
+}
+
+interface PriceHistoryModalProps {
+  model: ModelRow
+  onClose: () => void
+}
+
+interface PriceHistoryEntry {
+  id: number
+  price: number
+  scrapedAt: string
+}
+
+interface PriceData {
+  model: {
+    id: number
+    car: string | null
+    driver: string | null
+    year: number | null
+    team: string | null
+    brand: string | null
+  }
+  history: PriceHistoryEntry[]
+}
+
+function PriceHistoryModal({ model, onClose }: PriceHistoryModalProps) {
+  const [priceData, setPriceData] = useState<PriceData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    fetch(`/api/models/price-history?id=${model.id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al cargar el historial de precios')
+        return res.json()
+      })
+      .then((data) => {
+        setPriceData(data)
+        setLoading(false)
+      })
+      .catch((err) => {
+        setError(err.message)
+        setLoading(false)
+      })
+  }, [model.id])
+
+  const width = 500
+  const height = 220
+  const paddingLeft = 50
+  const paddingRight = 20
+  const paddingTop = 30
+  const paddingBottom = 30
+  const chartWidth = width - paddingLeft - paddingRight
+  const chartHeight = height - paddingTop - paddingBottom
+
+  const points = useMemo(() => {
+    if (!priceData || priceData.history.length === 0) return []
+    const history = priceData.history
+    const prices = history.map((h) => h.price)
+    let minP = Math.min(...prices)
+    let maxP = Math.max(...prices)
+
+    if (minP === maxP) {
+      minP = Math.max(0, minP - 5)
+      maxP = maxP + 5
+    } else {
+      const diff = maxP - minP
+      minP = Math.max(0, minP - diff * 0.1)
+      maxP = maxP + diff * 0.1
+    }
+
+    const times = history.map((h) => new Date(h.scrapedAt).getTime())
+    const minT = Math.min(...times)
+    const maxT = Math.max(...times)
+    const diffT = maxT - minT || 1
+
+    return history.map((h) => {
+      const t = new Date(h.scrapedAt).getTime()
+      const x =
+        paddingLeft +
+        (history.length > 1 ? ((t - minT) / diffT) * chartWidth : chartWidth / 2)
+      const y =
+        paddingTop + (1 - (h.price - minP) / (maxP - minP)) * chartHeight
+      return {
+        x,
+        y,
+        price: h.price,
+        date: h.scrapedAt,
+      }
+    })
+  }, [priceData, chartWidth, chartHeight])
+
+  const linePath = useMemo(() => {
+    if (points.length === 0) return ''
+    if (points.length === 1) {
+      const y = points[0].y
+      return `M ${paddingLeft} ${y} L ${width - paddingRight} ${y}`
+    }
+    return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  }, [points])
+
+  const areaPath = useMemo(() => {
+    if (points.length === 0) return ''
+    const bottom = height - paddingBottom
+    if (points.length === 1) {
+      const y = points[0].y
+      return `M ${paddingLeft} ${y} L ${width - paddingRight} ${y} L ${width - paddingRight} ${bottom} L ${paddingLeft} ${bottom} Z`
+    }
+    const first = points[0]
+    const last = points[points.length - 1]
+    return `${linePath} L ${last.x} ${bottom} L ${first.x} ${bottom} Z`
+  }, [points, linePath])
+
+  const yTicks = useMemo(() => {
+    if (!priceData || priceData.history.length === 0) return []
+    const prices = priceData.history.map((h) => h.price)
+    let minP = Math.min(...prices)
+    let maxP = Math.max(...prices)
+    if (minP === maxP) {
+      minP = Math.max(0, minP - 5)
+      maxP = maxP + 5
+    } else {
+      const diff = maxP - minP
+      minP = Math.max(0, minP - diff * 0.1)
+      maxP = maxP + diff * 0.1
+    }
+
+    const count = 4
+    return Array.from({ length: count }, (_, i) => {
+      const val = minP + (maxP - minP) * (i / (count - 1))
+      const y = paddingTop + (1 - (val - minP) / (maxP - minP)) * chartHeight
+      return { val, y }
+    })
+  }, [priceData, chartHeight])
+
+  const xTicks = useMemo(() => {
+    if (!points || points.length === 0) return []
+    if (points.length === 1) {
+      return [
+        {
+          label: new Date(points[0].date).toLocaleDateString('es', {
+            day: '2-digit',
+            month: 'short',
+          }),
+          x: width / 2,
+          anchor: 'middle' as const,
+        },
+      ]
+    }
+    const first = points[0]
+    const last = points[points.length - 1]
+    return [
+      {
+        label: new Date(first.date).toLocaleDateString('es', {
+          day: '2-digit',
+          month: 'short',
+          year: '2-digit',
+        }),
+        x: first.x,
+        anchor: 'start' as const,
+      },
+      {
+        label: new Date(last.date).toLocaleDateString('es', {
+          day: '2-digit',
+          month: 'short',
+          year: '2-digit',
+        }),
+        x: last.x,
+        anchor: 'end' as const,
+      },
+    ]
+  }, [points])
+
+  const stats = useMemo(() => {
+    if (!priceData || priceData.history.length === 0) return null
+    const prices = priceData.history.map((h) => h.price)
+    const current = prices[prices.length - 1]
+    const initial = prices[0]
+    const change = current - initial
+    const percent = initial !== 0 ? (change / initial) * 100 : 0
+    return {
+      current,
+      initial,
+      min: Math.min(...prices),
+      max: Math.max(...prices),
+      change,
+      percent,
+    }
+  }, [priceData])
+
+  return (
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="sm:max-w-xl bg-slate-900 border border-white/10 text-white rounded-xl shadow-2xl overflow-hidden p-6 max-h-[90vh] flex flex-col">
+        <DialogHeader className="mb-4">
+          <div className="flex items-center gap-2 text-xs font-semibold text-red-500 uppercase tracking-wider">
+            <Calendar className="h-3 w-3" /> Historial de Precios
+          </div>
+          <DialogTitle className="text-xl font-bold text-white leading-tight mt-1">
+            {model.car}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-400 mt-1 space-y-1">
+            <span className="block">
+              {model.driver && <span>Piloto: <strong className="text-slate-200">{model.driver}</strong></span>}
+              {model.year && <span> ({model.year})</span>}
+              {model.team && <span className="ml-3">Escudería: <strong className="text-slate-200">{model.team}</strong></span>}
+              {model.brand && <span className="ml-3">Fabricante: <strong className="text-slate-200">{model.brand}</strong></span>}
+            </span>
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-red-500 border-t-transparent animate-spin" />
+            <p className="text-xs text-slate-400 font-medium">Cargando datos históricos...</p>
+          </div>
+        ) : error ? (
+          <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center text-center p-4">
+            <div className="text-3xl">⚠️</div>
+            <p className="text-sm font-semibold text-slate-200 mt-2">Error</p>
+            <p className="text-xs text-slate-400 mt-1">{error}</p>
+          </div>
+        ) : !priceData || priceData.history.length === 0 ? (
+          <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center text-center p-4">
+            <p className="text-sm text-slate-400">No hay registros de precios disponibles para este modelo.</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+            {/* Quick stats grid */}
+            {stats && (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-slate-800/40 border border-white/5 rounded-lg p-3">
+                  <span className="text-[10px] text-slate-500 font-semibold uppercase block">Precio Inicial</span>
+                  <span className="text-base font-bold text-slate-300 font-mono mt-0.5 block">€{stats.initial.toFixed(2)}</span>
+                </div>
+                <div className="bg-slate-800/40 border border-white/5 rounded-lg p-3">
+                  <span className="text-[10px] text-slate-500 font-semibold uppercase block">Precio Actual</span>
+                  <span className="text-base font-bold text-white font-mono mt-0.5 block">€{stats.current.toFixed(2)}</span>
+                </div>
+                <div className="bg-slate-800/40 border border-white/5 rounded-lg p-3">
+                  <span className="text-[10px] text-slate-500 font-semibold uppercase block">Variación</span>
+                  <span className={cn(
+                    "text-base font-bold font-mono mt-0.5 block flex items-center gap-1",
+                    stats.change < 0 ? "text-emerald-400" : stats.change > 0 ? "text-red-400" : "text-slate-300"
+                  )}>
+                    {stats.change < 0 ? <TrendingDown className="h-4 w-4" /> : stats.change > 0 ? <TrendingUp className="h-4 w-4" /> : null}
+                    {stats.change > 0 ? '+' : ''}{stats.percent.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* SVG native chart */}
+            <div className="relative w-full h-[220px] bg-slate-950/40 border border-white/5 rounded-xl overflow-hidden shadow-inner p-1">
+              <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+                <defs>
+                  {/* Glow filter for the trend line */}
+                  <filter id="glow" x="-10%" y="-10%" width="120%" height="120%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                  {/* Degradado rojo semitransparente */}
+                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity="0.2" />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                {/* Horizontal Grid lines */}
+                {yTicks.map((tick, i) => (
+                  <g key={i} className="opacity-20">
+                    <line
+                      x1={paddingLeft}
+                      y1={tick.y}
+                      x2={width - paddingRight}
+                      y2={tick.y}
+                      stroke="#ffffff"
+                      strokeWidth="1"
+                      strokeDasharray="3,3"
+                    />
+                    <text
+                      x={paddingLeft - 8}
+                      y={tick.y + 4}
+                      fill="#ffffff"
+                      fontSize="9"
+                      fontFamily="monospace"
+                      textAnchor="end"
+                      opacity="0.8"
+                    >
+                      €{tick.val.toFixed(2)}
+                    </text>
+                  </g>
+                ))}
+
+                {/* Area path */}
+                {areaPath && (
+                  <path d={areaPath} fill="url(#chartGrad)" />
+                )}
+
+                {/* Line path */}
+                {linePath && (
+                  <path
+                    d={linePath}
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    filter="url(#glow)"
+                  />
+                )}
+
+                {/* Interactive Points */}
+                {points.map((p, i) => (
+                  <circle
+                    key={i}
+                    cx={p.x}
+                    cy={p.y}
+                    r={hoveredIndex === i ? 6.5 : 4}
+                    fill={hoveredIndex === i ? '#f59e0b' : '#ef4444'}
+                    stroke="#ffffff"
+                    strokeWidth={hoveredIndex === i ? 2 : 1.5}
+                    className="cursor-pointer transition-all duration-150"
+                    onMouseEnter={() => setHoveredIndex(i)}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                  />
+                ))}
+
+                {/* X Axis Ticks */}
+                {xTicks.map((tick, i) => (
+                  <text
+                    key={i}
+                    x={tick.x}
+                    y={height - 10}
+                    fill="#94a3b8"
+                    fontSize="9"
+                    fontFamily="monospace"
+                    textAnchor={tick.anchor || 'middle'}
+                    opacity="0.7"
+                  >
+                    {tick.label}
+                  </text>
+                ))}
+              </svg>
+
+              {/* Point hover absolute tooltip */}
+              {hoveredIndex !== null && points[hoveredIndex] && (
+                <div
+                  className="absolute z-50 bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white pointer-events-none shadow-2xl flex flex-col gap-0.5 -translate-x-1/2 -translate-y-full transition-all duration-75"
+                  style={{
+                    left: `${(points[hoveredIndex].x / width) * 100}%`,
+                    top: `${(points[hoveredIndex].y / height) * 100 - 4}%`,
+                  }}
+                >
+                  <span className="font-bold text-red-400 text-center font-mono">€{points[hoveredIndex].price.toFixed(2)}</span>
+                  <span className="text-[9px] text-slate-400 font-mono tracking-tight shrink-0 whitespace-nowrap">
+                    {new Date(points[hoveredIndex].date).toLocaleDateString('es', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Historical list section */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Historial detallado</h4>
+              <div className="border border-white/5 rounded-lg overflow-hidden bg-slate-950/20 max-h-[160px] overflow-y-auto pr-1">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 bg-slate-800/20 text-slate-400 font-medium">
+                      <th className="px-4 py-2">Fecha y Hora</th>
+                      <th className="px-4 py-2 text-right">Precio</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {priceData.history.slice().reverse().map((h, i) => (
+                      <tr key={i} className="hover:bg-white/5 transition-colors">
+                        <td className="px-4 py-2 text-slate-400 font-mono">
+                          {new Date(h.scrapedAt).toLocaleDateString('es', {
+                            day: '2-digit',
+                            month: 'long',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="px-4 py-2 text-right font-bold text-white font-mono">
+                          €{h.price.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
