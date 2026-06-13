@@ -6,7 +6,6 @@ import { SyncControl } from '@/components/sync-control'
 
 async function getModels(): Promise<ModelRow[]> {
   const models = await prisma.model.findMany({
-    where: { isBlacklisted: false },
     include: {
       priceHistory: {
         orderBy: { scrapedAt: 'desc' },

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { exec } from 'child_process'
+import { spawn } from 'child_process'
 import path from 'path'
+import fs from 'fs'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,23 @@ export async function GET() {
     const lastRun = await prisma.scraperRun.findFirst({
       orderBy: { startedAt: 'desc' },
     })
+
+    if (lastRun && lastRun.status === 'running') {
+      // If it is currently running, read the live log file
+      let liveLog = ''
+      try {
+        const logPath = path.join(process.cwd(), 'scraper', 'live.log')
+        if (fs.existsSync(logPath)) {
+          liveLog = fs.readFileSync(logPath, 'utf8')
+        }
+      } catch (err) {
+        console.error('[SYNC API GET] Error reading live log file:', err)
+      }
+      return NextResponse.json({
+        ...lastRun,
+        log: liveLog || 'Iniciando proceso y cargando logs...',
+      })
+    }
 
     return NextResponse.json(lastRun)
   } catch (error: any) {
@@ -71,20 +89,29 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Run the scraper script in background
-    const scraperPath = path.join(process.cwd(), 'scraper', 'scraper.py')
+    // 4. Clear/Prepare live log file
+    const logDir = path.join(process.cwd(), 'scraper')
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true })
+    }
+    const logPath = path.join(logDir, 'live.log')
+    fs.writeFileSync(logPath, '🚀 Iniciando el scraper de F1...\n')
 
-    console.log('[SYNC API] Launching scraper in background:', scraperPath)
-    
-    // We execute the child process. It runs asynchronously in the background.
-    // The scraper.py internally connects to PostgreSQL (using DATABASE_URL from process.env)
-    // and creates/updates the ScraperRun table with its own row.
-    exec(`python3 "${scraperPath}"`, (err, stdout, stderr) => {
-      if (err) {
-        console.error('[SYNC API BACKGROUND] Scraper script crashed:', stderr)
-      } else {
-        console.log('[SYNC API BACKGROUND] Scraper completed successfully.')
-      }
+    // 5. Run the scraper script in background with spawn (unbuffered -u)
+    const scraperPath = path.join(process.cwd(), 'scraper', 'scraper.py')
+    console.log('[SYNC API] Spawning scraper in background:', scraperPath)
+
+    const child = spawn('python3', ['-u', scraperPath], {
+      env: { ...process.env },
+    })
+
+    const logStream = fs.createWriteStream(logPath, { flags: 'a' })
+    child.stdout.pipe(logStream)
+    child.stderr.pipe(logStream)
+
+    child.on('close', (code) => {
+      console.log(`[SYNC API BACKGROUND] Scraper process exited with code ${code}`)
+      logStream.end()
     })
 
     return NextResponse.json({

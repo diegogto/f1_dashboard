@@ -28,6 +28,8 @@ import {
   Crown,
   Heart,
   ExternalLink,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -56,11 +58,105 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
     search: '',
     minPrice: null,
     maxPrice: null,
+    showBlacklisted: false,
   })
+  const [toast, setToast] = useState<{
+    id: number
+    ckArticleId: string
+    visible: boolean
+    timer: NodeJS.Timeout | null
+  } | null>(null)
+
+  // Toggle handlers
+  const handleToggleBlacklist = useCallback(async (row: ModelRow, isBlacklisted: boolean) => {
+    // Optimistic update
+    setData((prev) =>
+      prev.map((item) => (item.id === row.id ? { ...item, isBlacklisted } : item))
+    )
+
+    try {
+      const res = await fetch('/api/models/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId: row.id, action: 'blacklist', value: isBlacklisted }),
+      })
+      if (!res.ok) {
+        // Rollback on error
+        setData((prev) =>
+          prev.map((item) => (item.id === row.id ? { ...item, isBlacklisted: !isBlacklisted } : item))
+        )
+      } else {
+        if (isBlacklisted) {
+          // If we blacklisted the model, trigger the undo toast
+          setToast((prevToast) => {
+            if (prevToast?.timer) clearTimeout(prevToast.timer)
+            const timer = setTimeout(() => {
+              setToast(null)
+            }, 20000) // 20 seconds
+            return {
+              id: row.id,
+              ckArticleId: row.ckArticleId,
+              visible: true,
+              timer,
+            }
+          })
+        } else {
+          // If we restored, hide toast if it was for this model
+          setToast((prevToast) => {
+            if (prevToast?.id === row.id) {
+              if (prevToast.timer) clearTimeout(prevToast.timer)
+              return null
+            }
+            return prevToast
+          })
+        }
+      }
+    } catch (err) {
+      console.error(err)
+      // Rollback
+      setData((prev) =>
+        prev.map((item) => (item.id === row.id ? { ...item, isBlacklisted: !isBlacklisted } : item))
+      )
+    }
+  }, [toast])
+
+  const handleToggleWishlist = useCallback(async (row: ModelRow) => {
+    const nextValue = !row.isWishlisted
+    // Optimistic update
+    setData((prev) =>
+      prev.map((item) => (item.id === row.id ? { ...item, isWishlisted: nextValue } : item))
+    )
+
+    try {
+      const res = await fetch('/api/models/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId: row.id, action: 'wishlist', value: nextValue }),
+      })
+      if (!res.ok) {
+        // Rollback
+        setData((prev) =>
+          prev.map((item) => (item.id === row.id ? { ...item, isWishlisted: !nextValue } : item))
+        )
+      }
+    } catch (err) {
+      console.error(err)
+      setData((prev) =>
+        prev.map((item) => (item.id === row.id ? { ...item, isWishlisted: !nextValue } : item))
+      )
+    }
+  }, [])
 
   // Client-side filter logic
   const filteredData = useMemo(() => {
     return data.filter((row) => {
+      // Blacklist filter first
+      if (activeFilters.showBlacklisted) {
+        if (!row.isBlacklisted) return false
+      } else {
+        if (row.isBlacklisted) return false
+      }
+
       if (activeFilters.year && row.year !== activeFilters.year) return false
       if (activeFilters.driver && row.driver !== activeFilters.driver) return false
       if (activeFilters.team && row.team !== activeFilters.team) return false
@@ -114,9 +210,6 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
                 <Crown className="h-3.5 w-3.5 text-amber-400 shrink-0" aria-label="Campeón Mundial" />
               )}
               <span className="text-sm font-medium text-slate-100">{info.getValue() ?? '—'}</span>
-              {row.isWishlisted && (
-                <Heart className="h-3.5 w-3.5 text-red-400 shrink-0 fill-red-400" aria-label="En Wishlist" />
-              )}
             </div>
           )
         },
@@ -160,21 +253,55 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
         id: 'actions',
         header: () => null,
         cell: ({ row }) => {
-          const link = row.original.link
-          if (!link) return null
+          const model = row.original
+          const link = model.link
           return (
-            <a
-              href={link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Ver en CK-ModelCars"
-            >
-              <ExternalLink className="h-3.5 w-3.5 text-slate-500 hover:text-slate-200" />
-            </a>
+            <div className="flex items-center gap-2.5 justify-end pr-1">
+              {/* Wishlist Heart */}
+              <button
+                onClick={() => handleToggleWishlist(model)}
+                className="hover:scale-110 transition-transform focus:outline-none"
+                title={model.isWishlisted ? "Quitar de Wishlist" : "Agregar a Wishlist"}
+              >
+                <Heart
+                  className={cn(
+                    "h-4 w-4 transition-colors cursor-pointer",
+                    model.isWishlisted
+                      ? "text-red-500 fill-red-500 opacity-100"
+                      : "text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100"
+                  )}
+                />
+              </button>
+
+              {/* Blacklist toggle */}
+              <button
+                onClick={() => handleToggleBlacklist(model, !model.isBlacklisted)}
+                className="hover:scale-110 transition-transform focus:outline-none"
+                title={model.isBlacklisted ? "Quitar de Lista Negra" : "Mover a Lista Negra"}
+              >
+                {model.isBlacklisted ? (
+                  <Eye className="h-4 w-4 text-amber-500 hover:text-amber-400 opacity-100 cursor-pointer" />
+                ) : (
+                  <EyeOff className="h-4 w-4 text-slate-500 hover:text-amber-500 opacity-0 group-hover:opacity-100 cursor-pointer" />
+                )}
+              </button>
+
+              {/* External link */}
+              {link && (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:scale-110 transition-transform focus:outline-none"
+                  title="Ver en CK-ModelCars"
+                >
+                  <ExternalLink className="h-4 w-4 text-slate-500 hover:text-slate-200 opacity-0 group-hover:opacity-100" />
+                </a>
+              )}
+            </div>
           )
         },
-        size: 40,
+        size: 90,
       }),
     ],
     []
@@ -303,6 +430,32 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
           </Button>
         </div>
       </div>
+
+      {/* Undo Toast Notification */}
+      {toast && toast.visible && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center justify-between gap-4 w-80 rounded-xl border border-red-500/20 bg-slate-900/90 backdrop-blur-md p-4 shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-red-950/50 flex items-center justify-center border border-red-900/30 text-red-400 shrink-0 text-sm">
+              🚫
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-200">Modelo enviado a Lista Negra</p>
+              <p className="text-[10px] text-slate-400 font-mono mt-0.5">Artículo: {toast.ckArticleId}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const matchedModel = initialData.find((m) => m.id === toast.id)
+              if (matchedModel) {
+                handleToggleBlacklist(matchedModel, false)
+              }
+            }}
+            className="text-xs font-bold text-red-400 hover:text-red-300 underline underline-offset-2 shrink-0 transition-colors focus:outline-none"
+          >
+            Deshacer
+          </button>
+        </div>
+      )}
     </div>
   )
 }

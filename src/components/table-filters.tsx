@@ -32,6 +32,7 @@ export type ActiveFilters = {
   search: string
   minPrice: number | null
   maxPrice: number | null
+  showBlacklisted: boolean
 }
 
 interface TableFiltersProps {
@@ -259,6 +260,7 @@ export function TableFilters({
       search: '',
       minPrice: null,
       maxPrice: null,
+      showBlacklisted: false,
     })
   }
 
@@ -336,6 +338,23 @@ export function TableFilters({
             Solo Wishlist ♥
           </Label>
         </div>
+
+        {/* Blacklist toggle button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            onFiltersChange({ ...activeFilters, showBlacklisted: !activeFilters.showBlacklisted })
+          }
+          className={cn(
+            "h-9 gap-1.5 text-xs font-semibold border transition-all",
+            activeFilters.showBlacklisted
+              ? "bg-amber-950/40 border-amber-500/30 text-amber-400 hover:bg-amber-950/60 hover:text-amber-300"
+              : "bg-white/5 border-white/10 hover:bg-white/10 text-slate-400 hover:text-slate-200"
+          )}
+        >
+          {activeFilters.showBlacklisted ? "🚫 Ver Catálogo" : "🚫 Ver Lista Negra"}
+        </Button>
 
         {/* Clear all */}
         {activeCount > 0 && (
