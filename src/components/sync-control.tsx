@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { RefreshCw, AlertTriangle, KeyRound, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,12 +31,25 @@ export function SyncControl({ initialLastRun }: SyncControlProps) {
 
   const logConsoleRef = useRef<HTMLDivElement>(null)
 
+  const parsedLines = useMemo(() => {
+    if (!log) return []
+    const normalized = log.replace(/\r\n/g, '\n')
+    const lines = normalized.split('\n')
+    return lines.map((line) => {
+      if (line.includes('\r')) {
+        const parts = line.split('\r')
+        return parts.filter((p) => p !== '').pop() || ''
+      }
+      return line
+    })
+  }, [log])
+
   // Scroll terminal to bottom when new logs arrive
   useEffect(() => {
     if (logConsoleRef.current) {
       logConsoleRef.current.scrollTop = logConsoleRef.current.scrollHeight
     }
-  }, [log])
+  }, [parsedLines])
 
   // Poll status from API
   const checkStatus = useCallback(async () => {
@@ -219,8 +232,8 @@ export function SyncControl({ initialLastRun }: SyncControlProps) {
               ref={logConsoleRef}
               className="flex-1 bg-slate-950 font-mono text-[11px] leading-relaxed p-3 rounded-b-lg border-b border-x border-white/5 h-64 overflow-y-auto text-slate-300 select-text"
             >
-              {log ? (
-                log.split('\n').map((line, idx) => (
+              {parsedLines.length > 0 ? (
+                parsedLines.map((line, idx) => (
                   <div key={idx} className={cn(
                     "min-h-[16px]",
                     line.includes('Down:') && "text-emerald-400",
