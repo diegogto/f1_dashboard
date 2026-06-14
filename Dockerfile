@@ -25,13 +25,14 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PIP_ROOT_USER_ACTION=ignore
 
 # Install Python + pip (for scraper)
 RUN apk add --no-cache python3 python3-dev py3-pip py3-setuptools gcc musl-dev libffi-dev libxml2-dev libxslt-dev postgresql-dev
 
 # Install Python scraper dependencies
 COPY scraper/requirements.txt /tmp/py-requirements.txt
-RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/py-requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages --root-user-action=ignore -r /tmp/py-requirements.txt
 
 # Copy Next.js standalone build
 COPY --from=builder /app/.next/standalone ./
