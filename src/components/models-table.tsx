@@ -91,11 +91,49 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
     pageIndex: 0,
     pageSize: 50,
   })
+  const [isLoaded, setIsLoaded] = useState(false)
+
+  // Load state from localStorage on mount
+  useEffect(() => {
+    const savedFilters = localStorage.getItem('f1_active_filters')
+    if (savedFilters) {
+      try {
+        setActiveFilters(JSON.parse(savedFilters))
+      } catch (e) {
+        console.error('Error loading saved filters:', e)
+      }
+    }
+
+    const savedPagination = localStorage.getItem('f1_pagination')
+    if (savedPagination) {
+      try {
+        setPagination(JSON.parse(savedPagination))
+      } catch (e) {
+        console.error('Error loading saved pagination:', e)
+      }
+    }
+    setIsLoaded(true)
+  }, [])
+
+  // Save state to localStorage when changed
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem('f1_active_filters', JSON.stringify(activeFilters))
+    }
+  }, [activeFilters, isLoaded])
+
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem('f1_pagination', JSON.stringify(pagination))
+    }
+  }, [pagination, isLoaded])
 
   // Reset page index when filters change to avoid out of bounds views
   useEffect(() => {
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-  }, [activeFilters])
+    if (isLoaded) {
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+    }
+  }, [activeFilters, isLoaded])
 
   // Toggle handlers
   const handleToggleBlacklist = useCallback(async (row: ModelRow, isBlacklisted: boolean) => {
@@ -460,7 +498,26 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.length === 0 ? (
+              {!isLoaded ? (
+                Array.from({ length: 10 }).map((_, i) => (
+                  <tr
+                    key={i}
+                    className={cn(
+                      'border-b border-white/5 transition-colors',
+                      i % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-800/20'
+                    )}
+                  >
+                    {columns.map((col, colIdx) => (
+                      <td
+                        key={colIdx}
+                        className="px-4 py-3.5 first:pl-6 last:pr-6 align-middle"
+                      >
+                        <div className="h-4 bg-white/5 rounded animate-pulse w-full max-w-[80%]" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : table.getRowModel().rows.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length} className="text-center py-16 text-slate-500 text-sm">
                     No se encontraron modelos con los filtros seleccionados.
