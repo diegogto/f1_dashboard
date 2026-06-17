@@ -29,6 +29,7 @@ export type ActiveFilters = {
   teams: string[]
   brands: string[]
   titles: ('wdc' | 'wcc')[]
+  priceChanges: ('up' | 'down')[]
   wishlistOnly: boolean
   hideUnavailable: boolean
   search: string
@@ -261,6 +262,7 @@ export function TableFilters({
     activeFilters.teams.length > 0,
     activeFilters.brands.length > 0,
     activeFilters.titles.length > 0,
+    activeFilters.priceChanges && activeFilters.priceChanges.length > 0,
     activeFilters.wishlistOnly,
     activeFilters.hideUnavailable,
     activeFilters.search,
@@ -275,6 +277,7 @@ export function TableFilters({
       teams: [],
       brands: [],
       titles: [],
+      priceChanges: [],
       wishlistOnly: false,
       hideUnavailable: false,
       search: '',
@@ -350,6 +353,22 @@ export function TableFilters({
               v === 'Campeón Pilotos (WDC)' ? ('wdc' as const) : ('wcc' as const)
             )
             onFiltersChange({ ...activeFilters, titles: mapped })
+          }}
+        />
+
+        {/* Price variation filter */}
+        <MultiSelectComboboxFilter
+          label="Variación"
+          placeholder="Buscar variación..."
+          options={['Subió ▲', 'Bajó ▼']}
+          selectedValues={activeFilters.priceChanges ? activeFilters.priceChanges.map((c) =>
+            c === 'up' ? 'Subió ▲' : 'Bajó ▼'
+          ) : []}
+          onChange={(vals) => {
+            const mapped = vals.map((v) =>
+              v === 'Subió ▲' ? ('up' as const) : ('down' as const)
+            )
+            onFiltersChange({ ...activeFilters, priceChanges: mapped })
           }}
         />
 

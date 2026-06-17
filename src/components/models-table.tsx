@@ -73,6 +73,7 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
     teams: [],
     brands: [],
     titles: [],
+    priceChanges: [],
     wishlistOnly: false,
     hideUnavailable: false,
     search: '',
@@ -231,6 +232,9 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
       if (activeFilters.brands.length > 0 && (row.brand === null || !activeFilters.brands.includes(row.brand))) return false
       if (activeFilters.wishlistOnly && !row.isWishlisted) return false
       if (activeFilters.hideUnavailable && !row.isAvailable) return false
+      if (activeFilters.priceChanges && activeFilters.priceChanges.length > 0) {
+        if (row.priceChange === null || !(activeFilters.priceChanges as string[]).includes(row.priceChange)) return false
+      }
 
       if (activeFilters.titles.length > 0) {
         let matches = false
@@ -365,18 +369,11 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
       }),
       columnHelper.accessor('car', {
         header: ({ column }) => <SortableHeader column={column} label="Auto" />,
-        cell: (info) => {
-          const row = info.row.original
-          return (
-            <button
-              onClick={() => setSelectedModelForHistory(row)}
-              className="text-xs text-left text-slate-400 hover:text-red-400 font-medium hover:underline transition-colors focus:outline-none cursor-pointer line-clamp-1"
-              title="Ver historial de precios"
-            >
-              {info.getValue() ?? '—'}
-            </button>
-          )
-        },
+        cell: (info) => (
+          <span className="text-xs text-slate-400 font-medium line-clamp-1">
+            {info.getValue() ?? '—'}
+          </span>
+        ),
         size: 180,
       }),
       columnHelper.accessor('brand', {
@@ -535,14 +532,21 @@ export function ModelsTable({ initialData, filtersData }: ModelsTableProps) {
                         : 'opacity-50 hover:bg-slate-800/30'
                     )}
                   >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="px-4 py-3 first:pl-6 last:pr-6 align-middle"
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
+                    {row.getVisibleCells().map((cell) => {
+                      const isActions = cell.column.id === 'actions'
+                      return (
+                        <td
+                          key={cell.id}
+                          className={cn(
+                            "px-4 py-3 first:pl-6 last:pr-6 align-middle",
+                            !isActions && "cursor-pointer"
+                          )}
+                          onClick={!isActions ? () => setSelectedModelForHistory(row.original) : undefined}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      )
+                    })}
                   </tr>
                 ))
               )}
