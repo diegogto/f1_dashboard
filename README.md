@@ -78,7 +78,7 @@ python3 scraper/seed_from_sheets.py
 
 ## Scraper Automático
 
-El scraper corre automáticamente cada día a las **03:00 AM (Europe/Berlin)** vía `node-cron`.
+El scraper corre automáticamente cada día a las **04:00 AM (Europe/Berlin)** vía `node-cron`.
 
 Para ejecutarlo manualmente:
 

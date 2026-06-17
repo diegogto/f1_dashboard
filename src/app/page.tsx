@@ -217,7 +217,7 @@ export default async function DashboardPage() {
       <footer className="border-t border-white/5 mt-12 py-6">
         <div className="max-w-screen-2xl mx-auto px-6 flex items-center justify-between text-xs text-slate-600">
           <span>F1 Scale Models Dashboard · Datos de <a href="https://ck-modelcars.de" target="_blank" className="hover:text-slate-400 transition-colors underline underline-offset-2">ck-modelcars.de</a></span>
-          <span>Actualización automática: 03:00 AM CET</span>
+          <span>Actualización automática: 04:00 AM CET</span>
         </div>
       </footer>
     </div>

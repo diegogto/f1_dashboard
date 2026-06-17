@@ -8,10 +8,10 @@ export function initCron() {
   if (initialized) return
   initialized = true
 
-  // Run every day at 03:00 AM Europe/Berlin
+  // Run every day at 04:00 AM Europe/Berlin
   // (CK-ModelCars is a German store — syncing to their timezone makes sense)
   cron.schedule(
-    '0 3 * * *',
+    '0 4 * * *',
     () => {
       const scraperPath = path.join(process.cwd(), 'scraper', 'scraper.py')
       console.log('[CRON] Starting nightly F1 scraper at', new Date().toISOString())
@@ -28,5 +28,5 @@ export function initCron() {
     { timezone: 'Europe/Berlin' }
   )
 
-  console.log('[CRON] Nightly scraper scheduled — 03:00 AM Europe/Berlin')
+  console.log('[CRON] Nightly scraper scheduled — 04:00 AM Europe/Berlin')
 }
